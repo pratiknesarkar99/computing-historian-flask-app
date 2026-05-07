@@ -71,7 +71,7 @@ While you can use the graphical interface in the Foundry Portal and the Foundry 
     from azure.identity import DefaultAzureCredential
     from azure.ai.projects import AIProjectClient
     
-    my_endpoint = "<https://{your_foundry_resource}.services.ai.azure.com/api/projects/{your_project}>"
+    my_endpoint = "https://{your_foundry_resource}.services.ai.azure.com/api/projects/{your_project}"
     
     project_client = AIProjectClient(
         endpoint=my_endpoint,
