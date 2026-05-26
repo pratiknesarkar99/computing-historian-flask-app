@@ -96,7 +96,7 @@ While you can use the graphical interface in the Foundry Portal and the Foundry 
 1. Copy and paste the code into your **agent.py** code file. Then close the sample code tab.
 1. Save the changes to the **agent.py** file. in the **Explorer** pane, right-click the **agent.py** file, and select **Open in integrated terminal**.
 
-    > **Note**: Opening the terminal in Visual Studio Code will automatically activate the Python environment. If you're using a PowerShell terminal by default, you may need to enable running scripts on your system. See [Set-ExecutionPolicy](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/set-executionpolicy) for details.
+    > **Note**: Opening the terminal in Visual Studio Code should automatically activate the Python environment after a few seconds. If you're using a PowerShell terminal, you may need to enable running scripts on your system (see [Set-ExecutionPolicy](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/set-executionpolicy). If for any reason the Python environment is not activated automatically, you can use [this query](https://www.bing.com/search?q=%22How%20do%20I%20activate%20a%20Python%20venv%22) to search for information on how to activate it in your environment.
 
 1. Ensure that the terminal is open in the **computing-history** folder with the prefix **(.venv)** to indicate that the Python environment you created is active.
 

@@ -51,7 +51,7 @@ A partially completed client application for your agent has been provided. You'l
     - **requirements.txt** (the Python package dependencies that need to be installed)
 1. In the **Explorer** pane, right-click the **agent_client.py** file, and select **Open in integrated terminal**.
 
-    > **Note**: Opening the terminal in Visual Studio Code will automatically activate the Python environment. If you're using a PowerShell terminal by default, you may need to enable running scripts on your system. See [Set-ExecutionPolicy](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/set-executionpolicy) for details.
+    > **Note**: Opening the terminal in Visual Studio Code should automatically activate the Python environment after a few seconds. If you're using a PowerShell terminal, you may need to enable running scripts on your system (see [Set-ExecutionPolicy](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/set-executionpolicy). If for any reason the Python environment is not activated automatically, you can use GitHub Copilot to help you activate it.
 
 1. Ensure that the terminal is open in the **/computer-history-client** folder with the prefix **(.venv)** to indicate that the Python environment you created is active.
 1. Install the required Python packages by running the following command:
