@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "flask-app",
+      "runtimeExecutable": "/Users/tamu/Documents/dev/microsoft-ai/mslearn-agent-quickstart/.venv/bin/python",
+      "runtimeArgs": ["-m", "flask", "run", "--port", "5001"],
+      "port": 5001,
+      "cwd": "/Users/tamu/Documents/dev/microsoft-ai/mslearn-agent-quickstart/computer-history-client"
+    }
+  ]
+}

@@ -4,6 +4,9 @@ const sendBtn = document.getElementById('sendBtn');
 const chatMessages = document.getElementById('chatMessages');
 const resetBtn = document.getElementById('resetBtn');
 
+// localStorage key for conversation persistence
+const STORAGE_KEY = 'computing-history-chat';
+
 // Event listeners
 sendBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keypress', (e) => {
@@ -13,6 +16,14 @@ messageInput.addEventListener('keypress', (e) => {
     }
 });
 resetBtn.addEventListener('click', resetConversation);
+
+// Quick prompt chips
+document.querySelectorAll('.prompt-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+        messageInput.value = chip.dataset.prompt;
+        messageInput.focus();
+    });
+});
 
 // Keyboard accessibility: Allow Space key to activate buttons
 sendBtn.addEventListener('keydown', (e) => {
@@ -29,6 +40,53 @@ resetBtn.addEventListener('keydown', (e) => {
     }
 });
 
+// localStorage helpers
+function saveConversation(messages) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch (e) {
+        // Ignore storage errors (e.g. private browsing quota)
+    }
+}
+
+function loadConversation() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function clearStoredConversation() {
+    try {
+        localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {}
+}
+
+function getStoredMessages() {
+    return loadConversation() || [];
+}
+
+function appendStoredMessage(entry) {
+    const messages = getStoredMessages();
+    messages.push(entry);
+    saveConversation(messages);
+}
+
+// Restore persisted conversation on page load
+function restoreConversation() {
+    const messages = loadConversation();
+    if (!messages || messages.length === 0) return;
+
+    const welcomeMessage = document.querySelector('.welcome-message');
+    if (welcomeMessage) welcomeMessage.remove();
+
+    messages.forEach(({ text, sender, isHtml }) => {
+        addMessage(text, sender, { isHtml: !!isHtml }, /* persist= */ false);
+    });
+}
+
 // Functions
 function sendMessage() {
     const message = messageInput.value.trim();
@@ -43,7 +101,7 @@ function sendMessage() {
         welcomeMessage.remove();
     }
 
-    // Add user message to chat
+    // Add user message to chat and persist it
     addMessage(message, 'user');
 
     // Clear input
@@ -84,13 +142,13 @@ function sendMessage() {
         })
         .catch(error => {
             typingIndicator.remove();
-            addMessage(`Error: ${error.message}`, 'agent');
+            addMessage(`Connection error: Could not reach the agent. Please check your connection and try again.`, 'agent');
             setInputDisabled(false);
             messageInput.focus();
         });
 }
 
-function addMessage(text, sender, options = {}) {
+function addMessage(text, sender, options = {}, persist = true) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}`;
     messageDiv.setAttribute('role', 'article');
@@ -112,14 +170,45 @@ function addMessage(text, sender, options = {}) {
         content.innerHTML = formattedText;
     }
 
-    messageDiv.appendChild(avatar);
-    messageDiv.appendChild(content);
+    // Add copy button for agent messages
+    if (sender === 'agent') {
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.title = 'Copy to clipboard';
+        copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
+        copyBtn.textContent = '⎘';
+        copyBtn.addEventListener('click', () => {
+            const plainText = content.innerText || content.textContent;
+            navigator.clipboard.writeText(plainText).then(() => {
+                copyBtn.textContent = '✓';
+                copyBtn.classList.add('copied');
+                setTimeout(() => {
+                    copyBtn.textContent = '⎘';
+                    copyBtn.classList.remove('copied');
+                }, 1500);
+            }).catch(() => {
+                copyBtn.textContent = '✗';
+                setTimeout(() => { copyBtn.textContent = '⎘'; }, 1500);
+            });
+        });
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(content);
+        messageDiv.appendChild(copyBtn);
+    } else {
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(content);
+    }
 
     chatMessages.appendChild(messageDiv);
     scrollToBottom();
 
     // Scroll again after a short delay to ensure content is fully rendered
     setTimeout(scrollToBottom, 100);
+
+    // Persist to localStorage
+    if (persist) {
+        appendStoredMessage({ text, sender, isHtml: options.isHtml || false });
+    }
 }
 
 function renderMessageContent(text) {
@@ -309,11 +398,30 @@ function resetConversation() {
     })
         .then(response => response.json())
         .then(data => {
-            // Clear chat messages
-            chatMessages.innerHTML = '<div class="welcome-message" role="status">Let\'s chat about computing history...</div>';
+            clearStoredConversation();
+            chatMessages.innerHTML = `
+                <div class="welcome-message" role="status">
+                    <p>Let's chat about computing history...</p>
+                    <div class="quick-prompts" aria-label="Suggested questions">
+                        <p class="quick-prompts-label">Try asking:</p>
+                        <div class="quick-prompts-chips">
+                            <button class="prompt-chip" data-prompt="What was the first computer ever built?">What was the first computer?</button>
+                            <button class="prompt-chip" data-prompt="Tell me about the history of the internet">History of the internet</button>
+                            <button class="prompt-chip" data-prompt="Who invented the transistor and why was it important?">Who invented the transistor?</button>
+                            <button class="prompt-chip" data-prompt="What is Moore's Law and is it still relevant today?">What is Moore's Law?</button>
+                            <button class="prompt-chip" data-prompt="Tell me about the history of personal computers in the 1980s">Personal computers in the 1980s</button>
+                            <button class="prompt-chip" data-prompt="Who were the pioneers of software programming?">Pioneers of software programming</button>
+                        </div>
+                    </div>
+                </div>`;
+            // Re-attach chip listeners after DOM rebuild
+            document.querySelectorAll('.prompt-chip').forEach(chip => {
+                chip.addEventListener('click', () => {
+                    messageInput.value = chip.dataset.prompt;
+                    messageInput.focus();
+                });
+            });
             messageInput.focus();
-
-            // Remove announcement after a short delay
             setTimeout(() => announcement.remove(), 1000);
         })
         .catch(error => {
@@ -323,5 +431,6 @@ function resetConversation() {
         });
 }
 
-// Focus input on load
+// Restore any persisted conversation, then focus input
+restoreConversation();
 messageInput.focus();

@@ -175,6 +175,88 @@ body {
     margin-top: 40px;
 }
 
+/* Quick prompt suggestions */
+.quick-prompts {
+    margin-top: 24px;
+}
+
+.quick-prompts-label {
+    font-size: 13px;
+    color: #999;
+    margin-bottom: 10px;
+}
+
+.quick-prompts-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.prompt-chip {
+    background: #f4f4f8;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: #555;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.prompt-chip:hover {
+    background: #ede9ff;
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.prompt-chip:focus-visible {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+/* Copy button on agent messages */
+.copy-btn {
+    align-self: flex-start;
+    margin-top: 6px;
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    font-size: 14px;
+    cursor: pointer;
+    color: #aaa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.message.agent:hover .copy-btn {
+    opacity: 1;
+}
+
+.copy-btn:hover {
+    background: #f0f0f0;
+    color: #667eea;
+    border-color: #667eea;
+}
+
+.copy-btn.copied {
+    color: #4caf50;
+    border-color: #4caf50;
+    opacity: 1;
+}
+
+.copy-btn:focus-visible {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+    opacity: 1;
+}
+
 .message {
     display: flex;
     gap: 12px;
