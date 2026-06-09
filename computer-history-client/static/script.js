@@ -1,17 +1,29 @@
-// ── DOM elements ──────────────────────────────────────────────────────────────
-const messageInput    = document.getElementById('messageInput');
-const sendBtn         = document.getElementById('sendBtn');
-const chatMessages    = document.getElementById('chatMessages');
-const resetBtn        = document.getElementById('resetBtn');
-const themeToggleBtn  = document.getElementById('themeToggleBtn');
-const themeIcon       = document.getElementById('themeIcon');
-const clearConfirm    = document.getElementById('clearConfirm');
-const clearConfirmYes = document.getElementById('clearConfirmYes');
-const clearConfirmNo  = document.getElementById('clearConfirmNo');
+// ── Constants ─────────────────────────────────────────────────────────────────
+const SESSIONS_KEY    = 'computing-history-sessions';
+const ACTIVE_KEY      = 'computing-history-active';
+const THEME_KEY       = 'computing-history-theme';
+const SIDEBAR_KEY     = 'computing-history-sidebar';
+const MAX_HISTORY     = 3; // must match agent_client.py max_history
 
-// ── Storage keys ──────────────────────────────────────────────────────────────
-const CHAT_KEY  = 'computing-history-chat';
-const THEME_KEY = 'computing-history-theme';
+// ── DOM elements ──────────────────────────────────────────────────────────────
+const messageInput     = document.getElementById('messageInput');
+const sendBtn          = document.getElementById('sendBtn');
+const chatMessages     = document.getElementById('chatMessages');
+const resetBtn         = document.getElementById('resetBtn');
+const themeToggleBtn   = document.getElementById('themeToggleBtn');
+const themeIcon        = document.getElementById('themeIcon');
+const clearConfirm     = document.getElementById('clearConfirm');
+const clearConfirmYes  = document.getElementById('clearConfirmYes');
+const clearConfirmNo   = document.getElementById('clearConfirmNo');
+const exportBtn        = document.getElementById('exportBtn');
+const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+const sidebar          = document.getElementById('sidebar');
+const sessionList      = document.getElementById('sessionList');
+const newChatBtn       = document.getElementById('newChatBtn');
+const contextIndicator = document.getElementById('contextIndicator');
+
+// Runtime state
+let backendContextCount = 0;  // exchanges currently held by backend
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 function applyTheme(theme) {
@@ -22,82 +34,183 @@ function applyTheme(theme) {
 }
 
 function initTheme() {
-    const saved = localStorage.getItem(THEME_KEY);
+    const saved     = localStorage.getItem(THEME_KEY);
     const preferred = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     applyTheme(saved || preferred);
 }
 
 themeToggleBtn.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme');
-    const next = current === 'dark' ? 'light' : 'dark';
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     applyTheme(next);
     try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
 });
 
-// ── localStorage helpers ──────────────────────────────────────────────────────
-function saveChat(messages) {
-    try { localStorage.setItem(CHAT_KEY, JSON.stringify(messages)); } catch (e) {}
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function setSidebarOpen(open) {
+    sidebar.classList.toggle('open', open);
+    sidebar.setAttribute('aria-hidden', String(!open));
+    sidebarToggleBtn.setAttribute('aria-expanded', String(open));
+    try { localStorage.setItem(SIDEBAR_KEY, open ? '1' : '0'); } catch (e) {}
 }
 
-function loadChat() {
+sidebarToggleBtn.addEventListener('click', () => {
+    setSidebarOpen(!sidebar.classList.contains('open'));
+});
+
+function initSidebar() {
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    setSidebarOpen(saved === '1');
+}
+
+// ── Session storage helpers ───────────────────────────────────────────────────
+function loadSessions() {
     try {
-        const raw = localStorage.getItem(CHAT_KEY);
-        return raw ? JSON.parse(raw) : null;
-    } catch (e) { return null; }
+        const raw = localStorage.getItem(SESSIONS_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
 }
 
-function clearChat() {
-    try { localStorage.removeItem(CHAT_KEY); } catch (e) {}
+function saveSessions(sessions) {
+    try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions)); } catch (e) {}
 }
 
-function getStoredMessages() { return loadChat() || []; }
-
-function appendStoredMessage(entry) {
-    const msgs = getStoredMessages();
-    msgs.push(entry);
-    saveChat(msgs);
+function getActiveSessionId() {
+    return localStorage.getItem(ACTIVE_KEY) || null;
 }
 
-// ── Welcome state helpers ──────────────────────────────────────────────────────
-const WELCOME_HTML = `
-<div class="welcome-message" role="status">
-    <p>Let's chat about computing history...</p>
-    <div class="quick-prompts" aria-label="Suggested questions">
-        <p class="quick-prompts-label">Try asking:</p>
-        <div class="quick-prompts-chips">
-            <button class="prompt-chip" data-prompt="What was the first computer ever built?">What was the first computer?</button>
-            <button class="prompt-chip" data-prompt="Tell me about the history of the internet">History of the internet</button>
-            <button class="prompt-chip" data-prompt="Who invented the transistor and why was it important?">Who invented the transistor?</button>
-            <button class="prompt-chip" data-prompt="What is Moore's Law and is it still relevant today?">What is Moore's Law?</button>
-            <button class="prompt-chip" data-prompt="Tell me about the history of personal computers in the 1980s">Personal computers in the 1980s</button>
-            <button class="prompt-chip" data-prompt="Who were the pioneers of software programming?">Pioneers of software programming</button>
-        </div>
-    </div>
-</div>`;
+function setActiveSessionId(id) {
+    if (id) {
+        try { localStorage.setItem(ACTIVE_KEY, id); } catch (e) {}
+    } else {
+        try { localStorage.removeItem(ACTIVE_KEY); } catch (e) {}
+    }
+}
 
-function attachChipListeners() {
-    document.querySelectorAll('.prompt-chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            messageInput.value = chip.dataset.prompt;
-            messageInput.focus();
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function getActiveSession() {
+    const id = getActiveSessionId();
+    if (!id) return null;
+    return loadSessions().find(s => s.id === id) || null;
+}
+
+function upsertSession(session) {
+    const sessions = loadSessions();
+    const idx = sessions.findIndex(s => s.id === session.id);
+    if (idx >= 0) {
+        sessions[idx] = session;
+    } else {
+        sessions.unshift(session);
+    }
+    saveSessions(sessions);
+}
+
+function appendMessageToSession(sessionId, entry) {
+    const sessions = loadSessions();
+    const session  = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+    session.messages.push(entry);
+    // Derive title from first user message
+    if (!session.title) {
+        const firstUser = session.messages.find(m => m.sender === 'user');
+        if (firstUser) session.title = firstUser.text.slice(0, 42).trim();
+    }
+    saveSessions(sessions);
+}
+
+// ── Session list rendering ────────────────────────────────────────────────────
+function renderSessionList() {
+    const sessions   = loadSessions().filter(s => s.messages.some(m => m.sender === 'user'));
+    const activeId   = getActiveSessionId();
+
+    if (sessions.length === 0) {
+        sessionList.innerHTML = '<p class="session-empty">No previous conversations yet.</p>';
+        return;
+    }
+
+    sessionList.innerHTML = '';
+    sessions.forEach(session => {
+        const item = document.createElement('div');
+        item.className = 'session-item' + (session.id === activeId ? ' active' : '');
+        item.setAttribute('role', 'listitem');
+        item.setAttribute('tabindex', '0');
+        item.setAttribute('aria-label', `Conversation: ${session.title || 'Untitled'}`);
+        item.dataset.sessionId = session.id;
+
+        const title = document.createElement('div');
+        title.className = 'session-item-title';
+        title.textContent = session.title || 'Untitled';
+
+        const meta = document.createElement('div');
+        meta.className = 'session-item-meta';
+        meta.textContent = formatDate(session.createdAt);
+
+        item.appendChild(title);
+        item.appendChild(meta);
+
+        item.addEventListener('click', () => switchToSession(session.id));
+        item.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchToSession(session.id); }
         });
+
+        sessionList.appendChild(item);
     });
 }
 
-// ── Restore conversation on load ──────────────────────────────────────────────
-function restoreConversation() {
-    const messages = loadChat();
-    if (!messages || messages.length === 0) return;
+function formatDate(iso) {
+    if (!iso) return '';
+    const d   = new Date(iso);
+    const now = new Date();
+    const diffMs   = now - d;
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7)   return `${diffDays} days ago`;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+// ── Switch between sessions ───────────────────────────────────────────────────
+function switchToSession(id) {
+    setActiveSessionId(id);
+    backendContextCount = 0;
+
+    // Reset backend context — it won't have this old session's history
+    fetch('/reset', { method: 'POST' }).catch(() => {});
+
+    const session = loadSessions().find(s => s.id === id);
+    if (!session) return;
+
     const welcome = document.querySelector('.welcome-message');
     if (welcome) welcome.remove();
-    messages.forEach(({ text, sender, isHtml }) => {
+    chatMessages.innerHTML = '';
+
+    session.messages.forEach(({ text, sender, isHtml }) => {
         addMessage(text, sender, { isHtml: !!isHtml }, false);
     });
+
+    updateContextIndicator();
+    renderSessionList();
+    messageInput.focus();
 }
 
-// ── Clear / Reset ─────────────────────────────────────────────────────────────
+// ── New chat ──────────────────────────────────────────────────────────────────
+function startNewSession() {
+    setActiveSessionId(null);
+    backendContextCount = 0;
+    fetch('/reset', { method: 'POST' }).catch(() => {});
+    chatMessages.innerHTML = WELCOME_HTML;
+    attachChipListeners();
+    updateContextIndicator();
+    renderSessionList();
+    messageInput.focus();
+}
+
+newChatBtn.addEventListener('click', startNewSession);
+
+// ── Clear / reset ─────────────────────────────────────────────────────────────
 resetBtn.addEventListener('click', () => {
-    // Show inline confirmation
     clearConfirm.hidden = false;
     resetBtn.hidden = true;
     clearConfirmNo.focus();
@@ -112,35 +225,69 @@ clearConfirmNo.addEventListener('click', () => {
 clearConfirmYes.addEventListener('click', () => {
     clearConfirm.hidden = true;
     resetBtn.hidden = false;
-
-    fetch('/reset', { method: 'POST' })
-        .then(r => r.json())
-        .then(() => {
-            clearChat();
-            chatMessages.innerHTML = WELCOME_HTML;
-            attachChipListeners();
-            announce('Conversation cleared');
-            messageInput.focus();
-        })
-        .catch(() => {
-            announce('Error clearing conversation');
-        });
+    startNewSession();
+    announce('Conversation cleared');
 });
 
-// Space-key accessibility for toolbar buttons
-[resetBtn, themeToggleBtn, clearConfirmYes, clearConfirmNo].forEach(btn => {
-    btn.addEventListener('keydown', (e) => {
-        if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); btn.click(); }
+// ── Context visibility indicator ──────────────────────────────────────────────
+function updateContextIndicator() {
+    const active = Math.min(backendContextCount, MAX_HISTORY);
+    if (backendContextCount === 0) {
+        contextIndicator.hidden = true;
+    } else {
+        contextIndicator.hidden = false;
+        contextIndicator.textContent = `${active} / ${MAX_HISTORY} exchanges in context`;
+    }
+}
+
+// ── Export conversation ───────────────────────────────────────────────────────
+exportBtn.addEventListener('click', () => {
+    const session = getActiveSession();
+    const messages = session ? session.messages : [];
+
+    if (!messages.some(m => m.sender === 'user')) {
+        announce('Nothing to export yet');
+        return;
+    }
+
+    const title = session?.title || 'Conversation';
+    const dateStr = new Date().toLocaleString();
+    const divider = '═'.repeat(52);
+
+    let text = `COMPUTING HISTORY AGENT — CONVERSATION EXPORT\n`;
+    text += `Topic:    ${title}\n`;
+    text += `Exported: ${dateStr}\n`;
+    text += `${divider}\n\n`;
+
+    messages.forEach(({ text: msgText, sender, isHtml }) => {
+        const label = sender === 'user' ? '[YOU]' : '[AGENT]';
+        const content = isHtml ? stripHtml(msgText) : msgText;
+        text += `${label}\n${content.trim()}\n\n`;
     });
+
+    const blob = new Blob([text], { type: 'text/plain; charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `computing-history-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    announce('Conversation exported');
 });
+
+function stripHtml(html) {
+    try {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        return doc.body.textContent || '';
+    } catch (e) {
+        return html.replace(/<[^>]*>/g, '');
+    }
+}
 
 // ── Send message ──────────────────────────────────────────────────────────────
 sendBtn.addEventListener('click', sendMessage);
-messageInput.addEventListener('keypress', (e) => {
+messageInput.addEventListener('keypress', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-});
-sendBtn.addEventListener('keydown', (e) => {
-    if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); sendMessage(); }
 });
 
 function sendMessage() {
@@ -149,6 +296,15 @@ function sendMessage() {
 
     const welcome = document.querySelector('.welcome-message');
     if (welcome) welcome.remove();
+
+    // Ensure there's an active session; create one lazily on first message
+    let activeId = getActiveSessionId();
+    if (!activeId) {
+        activeId = generateId();
+        const newSession = { id: activeId, title: '', createdAt: new Date().toISOString(), messages: [] };
+        upsertSession(newSession);
+        setActiveSessionId(activeId);
+    }
 
     addMessage(message, 'user');
     messageInput.value = '';
@@ -176,6 +332,9 @@ function sendMessage() {
         } else {
             addMessage(data.response, 'agent');
         }
+        backendContextCount++;
+        updateContextIndicator();
+        renderSessionList();
         setInputDisabled(false);
         messageInput.focus();
     })
@@ -187,38 +346,18 @@ function sendMessage() {
     });
 }
 
-// ── Error classification & display ────────────────────────────────────────────
+// ── Error handling ────────────────────────────────────────────────────────────
 function classifyError(err) {
-    if (!err || err instanceof TypeError || err.message === 'Failed to fetch') {
-        return {
-            icon: '📡',
-            title: 'Connection error',
-            detail: 'Unable to reach the agent. Check your network connection and try again.',
-            canRetry: true
-        };
+    if (!err || err instanceof TypeError || err?.message === 'Failed to fetch') {
+        return { icon: '📡', title: 'Connection error', detail: 'Unable to reach the agent. Check your network and try again.', canRetry: true };
     }
     if (err.status === 500) {
-        return {
-            icon: '⚙️',
-            title: 'Server error',
-            detail: 'The agent encountered an internal problem. Please try again in a moment.',
-            canRetry: true
-        };
+        return { icon: '⚙️', title: 'Server error', detail: 'The agent encountered an internal problem. Please try again.', canRetry: true };
     }
     if (err.status === 400) {
-        return {
-            icon: '✏️',
-            title: 'Invalid request',
-            detail: err.message || 'Your message could not be processed.',
-            canRetry: false
-        };
+        return { icon: '✏️', title: 'Invalid request', detail: err.message || 'Your message could not be processed.', canRetry: false };
     }
-    return {
-        icon: '⚠️',
-        title: 'Something went wrong',
-        detail: err.message || 'An unexpected error occurred.',
-        canRetry: true
-    };
+    return { icon: '⚠️', title: 'Something went wrong', detail: err.message || 'An unexpected error occurred.', canRetry: true };
 }
 
 function addErrorMessage(err) {
@@ -247,14 +386,13 @@ function addErrorMessage(err) {
         const retryBtn = document.createElement('button');
         retryBtn.className = 'retry-btn';
         retryBtn.textContent = '↺ Retry';
-        retryBtn.setAttribute('aria-label', 'Retry sending the last message');
+        retryBtn.setAttribute('aria-label', 'Retry the last message');
         retryBtn.addEventListener('click', () => {
-            // Re-fill input with last user message and remove the error bubble
             const userMessages = chatMessages.querySelectorAll('.message.user');
             const lastUser = userMessages[userMessages.length - 1];
             if (lastUser) {
-                const lastText = lastUser.querySelector('.message-content');
-                if (lastText) messageInput.value = lastText.innerText || lastText.textContent;
+                const el = lastUser.querySelector('.message-content');
+                if (el) messageInput.value = el.innerText || el.textContent;
             }
             messageDiv.remove();
             messageInput.focus();
@@ -283,12 +421,7 @@ function addMessage(text, sender, options = {}, persist = true) {
 
     const content = document.createElement('div');
     content.className = 'message-content';
-
-    if (options.isHtml === true) {
-        content.innerHTML = text;
-    } else {
-        content.innerHTML = renderMessageContent(text);
-    }
+    content.innerHTML = options.isHtml ? text : renderMessageContent(text);
 
     messageDiv.appendChild(avatar);
     messageDiv.appendChild(content);
@@ -300,8 +433,8 @@ function addMessage(text, sender, options = {}, persist = true) {
         copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
         copyBtn.textContent = '⎘';
         copyBtn.addEventListener('click', () => {
-            const plainText = content.innerText || content.textContent;
-            navigator.clipboard.writeText(plainText).then(() => {
+            const plain = content.innerText || content.textContent;
+            navigator.clipboard.writeText(plain).then(() => {
                 copyBtn.textContent = '✓';
                 copyBtn.classList.add('copied');
                 setTimeout(() => { copyBtn.textContent = '⎘'; copyBtn.classList.remove('copied'); }, 1500);
@@ -318,7 +451,10 @@ function addMessage(text, sender, options = {}, persist = true) {
     setTimeout(scrollToBottom, 100);
 
     if (persist) {
-        appendStoredMessage({ text, sender, isHtml: options.isHtml || false });
+        const activeId = getActiveSessionId();
+        if (activeId) {
+            appendMessageToSession(activeId, { text, sender, isHtml: options.isHtml || false });
+        }
     }
 }
 
@@ -338,15 +474,12 @@ function addTypingIndicator() {
 
     const content = document.createElement('div');
     content.className = 'message-content';
+    content.innerHTML = `
+        <div class="typing-row" aria-hidden="true">
+            <div class="typing-indicator"><span></span><span></span><span></span></div>
+            <span class="typing-label">Agent is thinking…</span>
+        </div>`;
 
-    const row = document.createElement('div');
-    row.className = 'typing-row';
-    row.setAttribute('aria-hidden', 'true');
-    row.innerHTML = `
-        <div class="typing-indicator"><span></span><span></span><span></span></div>
-        <span class="typing-label">Agent is thinking…</span>`;
-
-    content.appendChild(row);
     messageDiv.appendChild(avatar);
     messageDiv.appendChild(content);
     chatMessages.appendChild(messageDiv);
@@ -357,14 +490,12 @@ function addTypingIndicator() {
 // ── Utilities ─────────────────────────────────────────────────────────────────
 function setInputDisabled(disabled) {
     messageInput.disabled = disabled;
-    sendBtn.disabled = disabled;
-    sendBtn.setAttribute('aria-busy', disabled ? 'true' : 'false');
-    messageInput.setAttribute('aria-busy', disabled ? 'true' : 'false');
+    sendBtn.disabled      = disabled;
+    sendBtn.setAttribute('aria-busy', String(disabled));
+    messageInput.setAttribute('aria-busy', String(disabled));
 }
 
-function scrollToBottom() {
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
+function scrollToBottom() { chatMessages.scrollTop = chatMessages.scrollHeight; }
 
 function announce(text) {
     const el = document.createElement('div');
@@ -378,37 +509,32 @@ function announce(text) {
 
 function escapeHtml(text) {
     return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
 // ── Markdown rendering ────────────────────────────────────────────────────────
 function renderMessageContent(text) {
-    const normalizedText = String(text || '').replace(/\r\n/g, '\n');
-    const markedLib = resolveMarkedLibrary();
-    const purifyLib = resolvePurifyLibrary();
-    if (!markedLib || !purifyLib) return renderFallbackMarkdown(normalizedText);
+    const normalized = String(text || '').replace(/\r\n/g, '\n');
+    const markedLib  = resolveMarkedLibrary();
+    const purifyLib  = resolvePurifyLibrary();
+    if (!markedLib || !purifyLib) return renderFallbackMarkdown(normalized);
 
     const renderer = new markedLib.Renderer();
     renderer.link = (hrefOrToken, title, textValue) => {
         let href = hrefOrToken, linkTitle = title, textContent = textValue;
         if (hrefOrToken && typeof hrefOrToken === 'object') {
-            href = hrefOrToken.href;
-            linkTitle = hrefOrToken.title;
+            href = hrefOrToken.href; linkTitle = hrefOrToken.title;
             textContent = markedLib.Parser && hrefOrToken.tokens
-                ? markedLib.Parser.parseInline(hrefOrToken.tokens)
-                : hrefOrToken.text;
+                ? markedLib.Parser.parseInline(hrefOrToken.tokens) : hrefOrToken.text;
         }
-        const safeHref = href || '#';
+        const safeHref  = href || '#';
         const safeTitle = linkTitle ? ` title="${escapeHtml(linkTitle)}"` : '';
         return `<a href="${safeHref}"${safeTitle} target="_blank" rel="noopener noreferrer">${textContent}</a>`;
     };
 
     markedLib.setOptions({ gfm: true, breaks: true, renderer });
-    const rawHtml = markedLib.parse(normalizedText);
+    const rawHtml = markedLib.parse(normalized);
     return purifyLib.sanitize(rawHtml, {
         USE_PROFILES: { html: true },
         ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'class']
@@ -417,15 +543,11 @@ function renderMessageContent(text) {
 
 function resolveMarkedLibrary() {
     if (typeof marked === 'undefined' && typeof window === 'undefined') return null;
-    const candidate = typeof marked !== 'undefined' ? marked : window.marked;
-    if (!candidate) return null;
-    if (typeof candidate.parse === 'function') return candidate;
-    if (typeof candidate.marked === 'function') {
-        return { parse: candidate.marked, setOptions: candidate.setOptions?.bind(candidate) || (() => {}), Renderer: candidate.Renderer, Parser: candidate.Parser };
-    }
-    if (typeof candidate === 'function') {
-        return { parse: candidate, setOptions: candidate.setOptions?.bind(candidate) || (() => {}), Renderer: candidate.Renderer, Parser: candidate.Parser };
-    }
+    const c = typeof marked !== 'undefined' ? marked : window.marked;
+    if (!c) return null;
+    if (typeof c.parse === 'function') return c;
+    if (typeof c.marked === 'function') return { parse: c.marked, setOptions: c.setOptions?.bind(c) || (() => {}), Renderer: c.Renderer, Parser: c.Parser };
+    if (typeof c === 'function') return { parse: c, setOptions: c.setOptions?.bind(c) || (() => {}), Renderer: c.Renderer, Parser: c.Parser };
     return null;
 }
 
@@ -440,7 +562,7 @@ function resolvePurifyLibrary() {
 
 function renderFallbackMarkdown(text) {
     let html = escapeHtml(text);
-    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, _lang, code) => `<pre><code>${code.trimEnd()}</code></pre>`);
+    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, _l, code) => `<pre><code>${code.trimEnd()}</code></pre>`);
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
@@ -448,8 +570,61 @@ function renderFallbackMarkdown(text) {
     return html.replace(/\n/g, '<br>');
 }
 
+// ── Welcome HTML (used on reset) ──────────────────────────────────────────────
+const WELCOME_HTML = `
+<div class="welcome-message" role="status">
+    <p>Let's chat about computing history...</p>
+    <div class="quick-prompts" aria-label="Suggested questions">
+        <p class="quick-prompts-label">Try asking:</p>
+        <div class="quick-prompts-chips">
+            <button class="prompt-chip" data-prompt="What was the first computer ever built?">What was the first computer?</button>
+            <button class="prompt-chip" data-prompt="Tell me about the history of the internet">History of the internet</button>
+            <button class="prompt-chip" data-prompt="Who invented the transistor and why was it important?">Who invented the transistor?</button>
+            <button class="prompt-chip" data-prompt="What is Moore's Law and is it still relevant today?">What is Moore's Law?</button>
+            <button class="prompt-chip" data-prompt="Tell me about the history of personal computers in the 1980s">Personal computers in the 1980s</button>
+            <button class="prompt-chip" data-prompt="Who were the pioneers of software programming?">Pioneers of software programming</button>
+        </div>
+    </div>
+</div>`;
+
+function attachChipListeners() {
+    document.querySelectorAll('.prompt-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            messageInput.value = chip.dataset.prompt;
+            messageInput.focus();
+        });
+    });
+}
+
+// Space-key accessibility for buttons
+[resetBtn, themeToggleBtn, clearConfirmYes, clearConfirmNo, exportBtn, sidebarToggleBtn, newChatBtn].forEach(btn => {
+    btn?.addEventListener('keydown', e => {
+        if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); btn.click(); }
+    });
+});
+
+// ── Restore active session on load ────────────────────────────────────────────
+function restoreActiveSession() {
+    const activeId = getActiveSessionId();
+    if (!activeId) return;
+
+    const session = loadSessions().find(s => s.id === activeId);
+    if (!session || !session.messages.some(m => m.sender === 'user')) return;
+
+    const welcome = document.querySelector('.welcome-message');
+    if (welcome) welcome.remove();
+
+    session.messages.forEach(({ text, sender, isHtml }) => {
+        addMessage(text, sender, { isHtml: !!isHtml }, false);
+    });
+    // backendContextCount stays 0 — backend starts fresh on page load
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 initTheme();
+initSidebar();
 attachChipListeners();
-restoreConversation();
+restoreActiveSession();
+renderSessionList();
+updateContextIndicator();
 messageInput.focus();
