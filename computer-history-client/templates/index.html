@@ -27,9 +27,19 @@
             <!-- Chat Area -->
             <div class="chat-container" role="region" aria-label="Chat conversation area">
                 <div class="chat-toolbar" role="toolbar" aria-label="Chat controls">
-                    <button id="resetBtn" class="reset-btn" title="Reset conversation and clear chat history"
-                        aria-label="Reset conversation" tabindex="3">
-                        <span aria-hidden="true">💬</span>
+                    <!-- Inline clear confirmation -->
+                    <div id="clearConfirm" class="clear-confirm" hidden aria-live="polite">
+                        <span class="clear-confirm-text">Clear chat history?</span>
+                        <button id="clearConfirmYes" class="clear-confirm-btn yes" aria-label="Yes, clear history">Yes</button>
+                        <button id="clearConfirmNo" class="clear-confirm-btn no" aria-label="No, keep history">No</button>
+                    </div>
+                    <button id="themeToggleBtn" class="toolbar-btn" title="Toggle dark / light mode"
+                        aria-label="Toggle dark mode" tabindex="4">
+                        <span aria-hidden="true" id="themeIcon">🌙</span>
+                    </button>
+                    <button id="resetBtn" class="toolbar-btn" title="Clear chat history"
+                        aria-label="Clear conversation" tabindex="3">
+                        <span aria-hidden="true">🗑️</span>
                     </button>
                 </div>
                 <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-atomic="false"
@@ -54,11 +64,15 @@
             <!-- Input Area -->
             <div class="input-container" role="form" aria-label="Message input form">
                 <label for="messageInput" class="sr-only">Type your message</label>
-                <input type="text" id="messageInput" class="message-input" placeholder="Type your message..."
+                <input type="text" id="messageInput" class="message-input" placeholder="Ask about computing history…"
                     autocomplete="off" aria-label="Message input field" aria-describedby="inputHelp" tabindex="1"
                     maxlength="10000">
                 <button id="sendBtn" class="send-btn" title="Send message" aria-label="Send message" tabindex="2">
-                    <span aria-hidden="true">➤</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
                 </button>
             </div>
 
