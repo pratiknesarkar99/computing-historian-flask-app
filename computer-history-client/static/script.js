@@ -225,6 +225,14 @@ clearConfirmNo.addEventListener('click', () => {
 clearConfirmYes.addEventListener('click', () => {
     clearConfirm.hidden = true;
     resetBtn.hidden = false;
+
+    // Delete the active session from storage before starting fresh
+    const activeId = getActiveSessionId();
+    if (activeId) {
+        const sessions = loadSessions().filter(s => s.id !== activeId);
+        saveSessions(sessions);
+    }
+
     startNewSession();
     announce('Conversation cleared');
 });
