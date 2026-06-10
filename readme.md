@@ -58,3 +58,12 @@ A web-based AI agent client built with Flask that connects to a Microsoft Foundr
 ## How It Works
 
 The application maintains a conversation history with your Foundry agent, keeping the last 3 exchanges to provide context for multi-turn conversations. Responses are handled asynchronously for a smooth user experience.
+
+
+## Live Snapshots
+
+<img width="1470" height="956" alt="Screenshot 2026-06-08 at 8 40 50 PM" src="https://github.com/user-attachments/assets/05386e34-93f1-4517-93b4-8eb603ef6d50" />
+<img width="1470" height="956" alt="Screenshot 2026-06-08 at 8 41 00 PM" src="https://github.com/user-attachments/assets/153c44cb-14f9-4463-8020-4733de08560a" />
+<img width="1470" height="956" alt="Screenshot 2026-06-08 at 8 41 44 PM" src="https://github.com/user-attachments/assets/09022070-b5a8-41ab-ad3f-b42af42d5dd3" />
+<img width="1470" height="956" alt="Screenshot 2026-06-08 at 8 42 24 PM" src="https://github.com/user-attachments/assets/4ec88698-6d30-4196-b982-deb811da78d6" />
+
